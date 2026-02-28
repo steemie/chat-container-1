@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>心灵树洞 - 情感疏导助手</title>
+    <style>
+        /* 简单的样式，营造温馨氛围 */
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f4f8; margin: 0; display: flex; justify-content: center; height: 100vh; }
+        .chat-container { width: 100%; max-width: 600px; background: white; display: flex; flex-direction: column; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .header { background: #6a8caf; color: white; padding: 20px; text-align: center; font-size: 1.2em; font-weight: bold; }
+        .chat-box { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
+        .message { max-width: 80%; padding: 12px 16px; border-radius: 15px; line-height: 1.5; font-size: 0.95em; position: relative; word-wrap: break-word; }
+        .user-msg { align-self: flex-end; background-color: #6a8caf; color: white; border-bottom-right-radius: 2px; }
+        .ai-msg { align-self: flex-start; background-color: #e9ecef; color: #333; border-bottom-left-radius: 2px; }
+        .input-area { padding: 20px; border-top: 1px solid #eee; display: flex; gap: 10px; background: #fff; }
+        input { flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 25px; outline: none; transition: 0.3s; }
+        input:focus { border-color: #6a8caf; }
+        button { padding: 10px 25px; background: #6a8caf; color: white; border: none; border-radius: 25px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        button:hover { background: #557291; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        .loading { font-style: italic; color: #888; font-size: 0.8em; margin-left: 10px; display: none; }
+        
+        /* 移动端适配 */
+        @media (max-width: 480px) { .chat-container { height: 100vh; box-shadow: none; } }
+    </style>
+</head>
+<body>
+
+<div class="chat-container">
+    <div class="header">🌿 心灵树洞 | 你的专属情感疏导员</div>
+    <div class="chat-box" id="chatBox">
+        <div class="message ai-msg">你好呀，我是你的情感树洞。这里很安全，你可以放心地说出心里的烦恼、委屈或快乐。我会一直在这里倾听。</div>
+    </div>
+    <div class="loading" id="loadingIndicator">正在思考如何安慰你...</div>
+    <div class="input-area">
+        <input type="text" id="userInput" placeholder="今天发生了什么？..." onkeypress="if(event.key==='Enter') sendMessage()">
+        <button onclick="sendMessage()" id="sendBtn">发送</button>
+    </div>
+</div>
+
+<script>
+    // ================= 配置区域 =================
+    // ⚠️ 请在这里填入你刚才申请的 DeepSeek API Key
+    const API_KEY = 'PLEASE_REPLACE_ME'; 
+    const API_URL = 'https://api.deepseek.com/chat/completions'; 
+    
+    // 设定人设：温暖、共情、不评判、引导式提问
+    const SYSTEM_PROMPT = `你是一位温暖、专业且富有同理心的情感疏导咨询师。
+    你的任务是倾听用户的烦恼，提供情绪价值，而不是单纯的说教。
+    原则：
+    1. 首先接纳用户的情绪，表示理解（共情）。
+    2. 语气温柔、平和，像一位老朋友。
+    3. 多使用开放式提问，引导用户表达更多，帮助用户理清思绪。
+    4. 如果用户有极端消极或自残倾向，请温柔地建议寻求专业医生帮助，并提供心理援助热线（如：希望24热线 400-161-9995）。
+    5. 回答要简洁，不要长篇大论，保持对话的自然流畅。`;
+    
+    let conversationHistory = [
+        { role: "system", content: SYSTEM_PROMPT }
+    ];
+
+    // ================= 逻辑区域 =================
+    const chatBox = document.getElementById('chatBox');
+    const userInput = document.getElementById('userInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const loadingIndicator = document.getElementById('loadingIndicator');
+
+    async function sendMessage() {
+        const text = userInput.value.trim();
+        if (!text) return;
+
+        // 1. 显示用户消息
+        addMessage(text, 'user-msg');
+        userInput.value = '';
+        userInput.disabled = true;
+        sendBtn.disabled = true;
+        loadingIndicator.style.display = 'block';
+
+        // 2. 记录历史
+        conversationHistory.push({ role: "user", content: text });
+
+        try {
+            // 3. 调用 API
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${API_KEY}`
+                },
+                body: JSON.stringify({
+                    model: "deepseek-chat", // 或者 deepseek-reasoner
+                    messages: conversationHistory,
+                    temperature: 0.7, // 稍微高一点，更有创造力及人情味
+                    max_tokens: 500
+                })
+            });
+
+            if (!response.ok) throw new Error('网络请求失败');
+
+            const data = await response.json();
+            const aiReply = data.choices[0].message.content;
+
+            // 4. 显示 AI 消息
+            addMessage(aiReply, 'ai-msg');
+            conversationHistory.push({ role: "assistant", content: aiReply });
+
+        } catch (error) {
+            addMessage("抱歉，我刚才走神了（网络错误），请再试一次好吗？", 'ai-msg');
+            console.error(error);
+        } finally {
+            userInput.disabled = false;
+            sendBtn.disabled = false;
+            loadingIndicator.style.display = 'none';
+            userInput.focus();
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+    }
+
+    function addMessage(text, className) {
+        const div = document.createElement('div');
+        div.className = `message ${className}`;
+        div.innerText = text;
+        chatBox.appendChild(div);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+</script>
+
+</body>
+</html>
